@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(PMF VERSION 0.7.0 LANGUAGES CXX)
+project(PMF VERSION 0.8.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -69,4 +69,12 @@ if(WIN32)
     target_link_libraries(pmf-service-pe-tests PRIVATE pmf-core)
     add_test(NAME pmf-service-pe
              COMMAND pmf-service-pe-tests $<TARGET_FILE:pmf-sample-service>)
+endif()
+
+if(MINGW)
+    enable_language(RC)
+    target_sources(pmf-loader-cli PRIVATE src/ui/require_admin.rc)
+    target_sources(pmf-unloader-cli PRIVATE src/ui/require_admin.rc)
+    target_link_options(pmf-loader-cli PRIVATE -municode -static -static-libgcc -static-libstdc++)
+    target_link_options(pmf-unloader-cli PRIVATE -municode -static -static-libgcc -static-libstdc++)
 endif()

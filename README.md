@@ -1,6 +1,6 @@
 # PMF — Persistence Management Framework
 
-PMF v0.7.0 provides both native Win32 setup wizards and interactive console tools for the same Windows Service management core. All four tools are independent EXE binaries; PMF does not use an MSI installer or register itself in Windows Apps & Features.
+PMF v0.8.0 provides both native Win32 setup wizards and interactive console tools for the same Windows Service management core. All four tools are independent EXE binaries; PMF does not use an MSI installer or register itself in Windows Apps & Features.
 
 ## Four executables
 
@@ -15,7 +15,13 @@ Both interface styles call the same shared `pmf-core` library and use the same m
 
 ### CLI usage
 
-Run from an elevated Windows Terminal:
+Double-click either CLI executable or launch it in an elevated Windows Terminal without arguments. Each program starts its interactive text interface immediately:
+
+- `pmf-loader-cli.exe` prompts for an EXE path, suggests a service label, requests an optional management password and a recovery-file destination, then shows a final installation review.
+- `pmf-unloader-cli.exe` automatically lists PMF-managed services. Navigate with Up/Down, Page Up/Down, Home/End or numbers 1-9, press Enter to choose, and Esc to cancel. Enter the management password (or leave blank when none is configured), then explicitly confirm removal. A recovery-code option appears if removal fails.
+- Console windows started by double-click remain open at the result screen until a key is pressed.
+
+Existing commands remain available:
 
 ```powershell
 .\pmf-loader-cli.exe install "C:\Path\my-service.exe" example
@@ -23,7 +29,7 @@ Run from an elevated Windows Terminal:
 .\pmf-unloader-cli.exe remove example
 ```
 
-The CLI programs also accept interactive input without fixed arguments. Passwords are never required as command-line arguments.
+Passwords and recovery codes are entered through a no-echo prompt, not as command-line arguments.
 
 ## Classic wizard experience
 
