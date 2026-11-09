@@ -1,61 +1,65 @@
 # PMF — Persistence Management Framework
 
-PMF v0.5.0 provides two standalone C++20 Windows command-line utilities for consent-based management of existing Windows Service executables:
+PMF v0.6.0 provides two standalone, native Win32 setup and removal wizards for Windows Services. Each is a single Windows GUI-subsystem executable, requires no MSI or .NET runtime, and does not register PMF itself in Windows Apps & Features.
 
-- `pmf-loader.exe` — register and start a Windows Service using Windows Service Control Manager
-- `pmf-unloader.exe` — list, stop, unregister and remove PMF-managed services
+## Classic wizard experience
 
-Both binaries are Windows console applications. They are not added to Apps & Features and do not require a separate MSI installer.
+Both programs use a consistent Windows installer layout with a white header, native controls, system-color content area, a classic welcome/finish sidebar, and Back / Next / Cancel buttons. The interface includes a working state with a progress indicator and a completion or error page.
 
-## Usage
+### Setup wizard: pmf-loader.exe
 
-From an elevated Windows Terminal or PowerShell session:
+1. Welcome — explains what the installer will do.
+2. Select Windows Service — Browse for an existing service-compatible executable and choose a label.
+3. Service Configuration — review service account, startup behavior and installation path.
+4. Password and Recovery — set any password, including a blank one; choose a separate text file for the recovery key.
+5. Ready to Install — review and explicitly authorize registration.
+6. Installing — Windows SCM registration and start operation with progress status.
+7. Finish — displays the result and a meaningful error if installation fails.
 
-```powershell
-.\pmf-loader.exe install "C:\Path\service.exe" example
-.\pmf-unloader.exe list
-.\pmf-unloader.exe remove example
-```
+The executable must implement Windows Service lifecycle APIs. Validating the PE header is necessary but does not guarantee the selected executable can run as a Windows Service.
 
-Running `pmf-loader.exe` or `pmf-unloader.exe` without arguments enters interactive mode. For help use `--help`.
+### Removal wizard: pmf-unloader.exe
 
-During installation, the loader prompts for an optional password. Any length is permitted, including an empty password. When no password is chosen, PMF explicitly warns that its normal removal workflow will not require a password. A recovery code is always generated and written to a user-selected text file.
+1. Welcome.
+2. Select Windows Service — choose a PMF-managed service.
+3. Authenticate — management password, recovery code or no-password mode.
+4. Confirm Removal — explicitly authorize service stop/unregistration and managed file cleanup.
+5. Removing — progress indicator.
+6. Finish — displays success or the Windows error.
 
-During removal, authentication may use the original password, the recovery code, or no password if the service was registered without one. A Windows administrator remains able to stop and manage the service using standard Windows administration tools independently of PMF.
+The original selected executable and exported recovery file are retained after removal.
 
-## Service installation
+## Windows Service configuration
 
-The selected `.exe` must be a real Windows Service that implements the Service Control Manager lifecycle API. A valid PE header does not prove service compatibility; PMF asks SCM to start the service and reports startup failure.
-
-| Setting | Value |
+| Property | Value |
 |---|---|
-| Service name | `PMF-<label>` |
-| Installed EXE | `C:\Program Files\PMF\Services\<label>\service.exe` |
-| Metadata | `C:\ProgramData\PMF\managed\<label>\manifest.txt` |
-| Account | `NT AUTHORITY\LocalService` |
+| Service name | PMF-<label> |
+| Program | C:\Program Files\PMF\Services\<label>\service.exe |
+| Metadata | C:\ProgramData\PMF\managed\<label>\manifest.txt |
+| Service account | NT AUTHORITY\LocalService |
 | Startup | Automatic |
-| Elevation | UAC administrator approval |
+| Privileged operations | Windows UAC approval required |
 
-A SYSTEM/LocalSystem account option is not provided. This installer does not create antivirus exclusions, conceal its services, or prevent administrative removal.
+The service remains fully visible to Windows Services and administrative tools. The management password governs PMF's normal removal workflow only and cannot prevent administrative recovery.
 
-## Passwords and recovery codes
+## Password and recovery
 
-Passwords are optional, and there is no minimum length. Where used, passwords are checked against salted PBKDF2-HMAC-SHA256 verifiers. A randomly generated recovery code with 160 bits of entropy is saved separately to a text file chosen by the user. Recovery files should be protected and stored outside PMF's managed folders.
-
-Existing manifests from earlier versions remain readable. New manifests also indicate when a password was intentionally omitted.
+Passwords are optional and have no minimum length. Choosing an empty password displays an explicit warning. A unique recovery code is still generated and exported to a user-selected text file. The corresponding metadata stores only salted PBKDF2-HMAC-SHA256 verifiers, never the plaintext password or recovery code.
 
 ## Build
 
-Requires CMake 3.20+ and a C++20 toolchain. On Windows, use MSVC:
+On Windows, install Visual Studio 2022/2026 C++ Build Tools and CMake 3.20 or newer.
 
-```powershell
+~~~powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
-```
+~~~
 
-The built `pmf-loader.exe` and `pmf-unloader.exe` are console-subsystem binaries that use the static MSVC runtime. Both request administrative approval via an embedded UAC manifest. GitHub Actions builds the two binaries and publishes them as the `pmf-windows` artifact.
+Double-click build/Release/pmf-loader.exe or build/Release/pmf-unloader.exe. The MSVC release build statically links the C runtime. GitHub Actions produces an artifact named pmf-windows containing both EXEs.
 
-## Antivirus and system security
+## Trust and security
 
-Being a CLI does not inherently make an application malicious or safe. Microsoft Defender and Windows SmartScreen may still warn about unsigned, unfamiliar executables or service-registration behavior. PMF does not attempt to bypass AV, require broad folder exclusions, or disable Windows security protections.
+Running as a GUI does not eliminate AV false positives. Unsigned, low-reputation binaries can be flagged by SmartScreen, and Service Control Manager registration may be assessed by antivirus behavior detection. PMF does not attempt to bypass antivirus, create exclusions, hide processes, or prevent administrators from removing the service. For distribution, use reproducible builds and Authenticode code signing.
+
+This framework deliberately uses LocalService rather than SYSTEM for selected service executables. PMF does not convert non-service EXEs into services.

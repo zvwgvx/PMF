@@ -1,25 +1,30 @@
-# PMF 0.5.0 — CLI architecture
+# PMF v0.6.0 — classic Windows wizard
 
-## Executables
+## Design
 
-`pmf-loader.exe` and `pmf-unloader.exe` are independently linkable Windows console binaries. The former handles interactive service installation; the latter handles listing and authenticated service removal.
+Two native Windows GUI executables, pmf-loader.exe and pmf-unloader.exe, share a static Win32 wizard component. The visual design follows conventional Windows setup assistants rather than a custom webview or mixed modern/classic UI.
 
-They use `pmf-core` for PE validation, authenticated manifest storage, and Service Control Manager interaction. The prior Win32 wizard source is retained as historical source, but is not built or distributed in v0.5.0.
+The wizard uses native EDIT, BUTTON, LISTBOX and progress-bar controls, the Windows file picker and Save As picker, classic Windows dialog keyboard navigation, and modeless page state. Lengthy Windows service operations run on a worker thread so the UI remains responsive while controls are disabled.
 
-## Registration lifecycle
+## Install sequence
 
-The loader prompts for a Windows Service EXE, a unique service label, an optional password, and a location to save recovery text. It prints the configured service name, account and destination and requires explicit confirmation before registration.
+Welcome → Select Windows Service → Service Configuration → Password and Recovery → Review → Installing → Finish.
 
-Services are installed into `%ProgramFiles%\PMF\Services\<label>\service.exe`, with authentication metadata in `%ProgramData%\PMF\managed\<label>\manifest.txt`.
+The installer checks the executable PE format, collects an independent label, allows a blank or non-empty management password, confirms the recovery file path, and requires explicit consent. SCM registers an auto-start own-process Windows Service named PMF-<label> under NT AUTHORITY\LocalService.
 
-PMF registers `PMF-<label>` as a standard, auto-start `SERVICE_WIN32_OWN_PROCESS` service under `NT AUTHORITY\LocalService`, never LocalSystem. Windows UAC is used for privileged installation and removal. The service remains visible and removable through Windows administration.
+## Removal sequence
 
-## Credential model
+Welcome → Select Service → Authenticate → Review → Removing → Finish.
 
-Password mode is either `set` or `none`. In `set` mode, any nonempty password length is accepted and verified using salted PBKDF2-HMAC-SHA256. In `none` mode, no management password is required for PMF removal. Both modes generate an independent recovery code that is exported outside managed storage.
+The removal wizard supports password, recovery-code, and no-password modes. Removal uses Windows SCM stop and unregister operations before deleting PMF-managed binary and metadata files. The source EXE and recovery export remain untouched.
 
-Earlier manifests lacking the explicit `password_mode` value continue to use password validation.
+## Implementation and scope
 
-## Limitations
+- C++20 and Win32, no .NET, Electron or Qt.
+- Static MSVC runtime.
+- Embedded administrator UAC manifest for SCM configuration.
+- Native Windows file dialogs.
+- Transparent installation under Program Files and metadata under ProgramData.
+- No SYSTEM option, antivirus exclusions, anti-removal, process injection, or service hiding.
 
-PMF does not create or convert Windows Service executables, supply a SYSTEM privilege option, configure antivirus exclusions, or implement stealth or anti-removal persistence. Administrator authority to manage services is not constrained by PMF authentication.
+The build and test workflows compile Windows and Linux targets and upload the Windows GUI executables.
