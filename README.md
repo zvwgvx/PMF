@@ -1,53 +1,42 @@
 # PMF — Persistence Management Framework
 
-PMF is a C++20 Windows project for transparent, consent-based management of local executable packages. It consists of two portable, standalone command-line binaries: `pmf-loader.exe` and `pmf-unloader.exe`.
+PMF is a C++20 project for explicit, user-authorized Windows executable management. The Windows frontends are native graphical setup and removal wizards rather than terminal programs.
 
-## Current capabilities
+## Windows applications
 
-- Browse for a Windows PE executable in the native Windows file selection dialog, or provide the executable path on the command line
-- Choose a unique installation label
-- Explicitly approve the managed-copy operation
-- Set a per-label password of at least 12 characters
-- Create a cryptographically random recovery code in a text file at a user-selected path
-- Copy the selected EXE to `%ProgramData%\PMF\managed\<label>\payload.exe`
-- Verify SHA-256 of the original and copied EXE
-- Record salted PBKDF2-HMAC-SHA256 password and recovery-code verifiers
-- List managed copies and remove one using its password or recovery code
+- \`pmf-loader.exe\` opens a multi-step setup wizard to select a local Windows executable through Browse, specify a management label, enter and confirm a password, choose where to save a recovery text file, review the operation, and create a managed copy.
+- \`pmf-unloader.exe\` opens a removal wizard to select an installed PMF-managed copy, authenticate using its password or recovery code, review the operation, and delete that managed copy.
+- Both programs are compiled as Windows GUI subsystem executables. They do not open a command prompt or register themselves in Windows Apps & Features.
+- PMF requires no .NET runtime. The MSVC release build uses a statically linked C runtime, and the executables use native Win32 APIs.
 
-PMF never launches the managed executable, adds startup persistence, changes antivirus settings, or prevents an administrator from removing its files. It does not register an installed app entry in Windows Apps & Features. The original selected executable is not altered or removed.
+## Current operation
 
-## Build on Windows
+PMF stores each managed copy under \`%ProgramData%\PMF\managed\<label>\payload.exe\`, with \`manifest.txt\` beside it. The original executable is never modified.
 
-Requires CMake 3.20+ and Visual Studio 2022 C++ tools.
+Authentication uses separate salts and PBKDF2-HMAC-SHA256 password verifiers. Every package receives a unique randomly generated recovery code saved as a text file at a path chosen by the user. Executable integrity is checked with SHA-256.
 
-```powershell
+PMF does not execute the managed executable, register an autorun task or Windows service, alter antivirus exclusions, or prevent removal by a system administrator. A management password restricts the normal PMF unloader workflow only.
+
+## Build
+
+On Windows, install CMake 3.20+ and MSVC C++ Build Tools.
+
+~~~powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
-```
+~~~
 
-The MSVC build uses the static runtime and links against built-in Windows libraries. Each released CLI is an independent executable.
+Run \`build\Release\pmf-loader.exe\` or \`build\Release\pmf-unloader.exe\` by double-clicking. A console is not required.
 
-## Usage
+## User interface
 
-```powershell
-.\build\Release\pmf-loader.exe
-.\build\Release\pmf-loader.exe "C:\Path\MyProgram.exe" my-program
-.\build\Release\pmf-unloader.exe --list
-.\build\Release\pmf-unloader.exe my-program
-.\build\Release\pmf-unloader.exe --status
-```
+The loader has Welcome, Select Program, Security, Review, and Finish pages. The unloader has Select Program, Authentication, Review, and Finish pages. Each wizard uses Back, Next, and Cancel controls with explicit confirmation before changing files.
 
-Invoking `pmf-loader.exe` without arguments opens a Browse dialog. After approval it prompts for a password and Save As location for the recovery text file.
+## Storage and recovery
 
-Invoking `pmf-unloader.exe` without arguments lists labels and prompts for the application to remove. You may authenticate using either its password or its recovery code.
+The recovery text contains a credential that authorizes removal of its corresponding managed package. Save it outside the PMF directory and protect it like a password. If PMF cannot write to \`%ProgramData%\PMF\`, run the wizard with the necessary Windows folder permissions.
 
-## Data format
+## Safety boundaries
 
-A managed copy is stored in `%ProgramData%\PMF\managed\<label>` with `payload.exe` and `manifest.txt`. The manifest stores the label, executable digest, unique salts, and derived verifier hashes. Passwords and recovery codes are not stored in the manifest in plaintext.
-
-**Recovery text files are secrets.** PMF asks you to place each recovery file outside the managed directory. Store it securely and do not distribute it with the managed copy. A recovery code authorizes normal PMF removal; it does not replace administrator recovery rights.
-
-## Non-goals
-
-PMF does not provide stealth, process injection, C2/implant deployment, security-tool bypass, auto-start persistence, or tamper-resistant removal. Antivirus exclusions are never created or required.
+This is a managed-copy prototype, not a stealth or anti-removal persistence system. No antivirus exclusion is created or required, and the administrator remains in control of the computer.
