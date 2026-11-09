@@ -73,6 +73,8 @@ int main() {
         }
     }
 
+    recovery_input.close();
+
     if (recovery.empty()) {
         std::cerr << "PMF lifecycle failure 6\\n";
         return 6;
