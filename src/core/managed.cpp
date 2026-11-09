@@ -254,7 +254,8 @@ bool is_reparse_point(const std::filesystem::path& path) {
 }
 
 bool install_managed(const InstallationIdentity& identity, const std::wstring& password,
-                     const std::filesystem::path& recovery_path, std::string& error) {
+                     const std::filesystem::path& recovery_path, std::string& error,
+                     bool keep_copy) {
     if (!valid_label(identity.label) || password.size() < 12) {
         error = "Invalid label or password shorter than 12 characters.";
         return false;
@@ -293,22 +294,34 @@ bool install_managed(const InstallationIdentity& identity, const std::wstring& p
     };
 
     const auto binary = destination / L"payload.exe";
-    std::filesystem::copy_file(identity.executable, binary, std::filesystem::copy_options::none, ec);
+    if (keep_copy) {
+        std::filesystem::copy_file(identity.executable, binary,
+                                   std::filesystem::copy_options::none, ec);
 
-    if (ec) {
-        rollback();
-        error = "Cannot copy the executable.";
-        return false;
+        if (ec) {
+            rollback();
+            error = "Cannot copy the executable.";
+            return false;
+        }
     }
 
     std::string original_hash;
     std::string copied_hash;
 
-    if (!file_sha256(identity.executable, original_hash) || !file_sha256(binary, copied_hash) ||
-        original_hash != copied_hash) {
+    if (!file_sha256(identity.executable, original_hash)) {
         rollback();
-        error = "Executable integrity verification failed.";
+        error = "Cannot calculate executable integrity hash.";
         return false;
+    }
+
+    if (keep_copy) {
+        if (!file_sha256(binary, copied_hash) || original_hash != copied_hash) {
+            rollback();
+            error = "Executable integrity verification failed.";
+            return false;
+        }
+    } else {
+        copied_hash = original_hash;
     }
 
     std::vector<std::uint8_t> password_salt(16);
@@ -336,7 +349,7 @@ bool install_managed(const InstallationIdentity& identity, const std::wstring& p
     const std::map<std::string, std::string> fields{
         {"version", "1"},
         {"label", identity.label},
-        {"binary", "payload.exe"},
+        {"binary", keep_copy ? "payload.exe" : "service.exe"},
         {"sha256", copied_hash},
         {"password_salt", hex_encode(password_salt)},
         {"password_hash", hex_encode(password_hash)},
@@ -398,7 +411,7 @@ bool install_managed(const InstallationIdentity& identity, const std::wstring& p
     return true;
 }
 
-bool uninstall_managed(const std::string& label, const std::wstring& secret,
+bool verify_managed_secret(const std::string& label, const std::wstring& secret,
                        bool recovery_mode, std::string& error) {
     if (!valid_label(label)) {
         error = "Invalid installation label.";
@@ -432,6 +445,22 @@ bool uninstall_managed(const std::string& label, const std::wstring& secret,
         return false;
     }
 
+    return true;
+}
+
+bool uninstall_managed(const std::string& label, const std::wstring& secret,
+                       bool recovery_mode, std::string& error) {
+    if (!verify_managed_secret(label, secret, recovery_mode, error)) {
+        return false;
+    }
+
+    const auto root = managed_root();
+    if (!root) {
+        error = "Windows workspace is unavailable.";
+        return false;
+    }
+
+    const auto destination = *root / label;
     std::error_code ec;
     std::filesystem::remove_all(destination, ec);
 
@@ -490,8 +519,13 @@ std::vector<std::string> list_managed(std::string& error) {
 namespace pmf {
 
 bool install_managed(const InstallationIdentity&, const std::wstring&,
-                     const std::filesystem::path&, std::string& error) {
+                     const std::filesystem::path&, std::string& error, bool) {
     error = "PMF managed installation is supported on Windows only.";
+    return false;
+}
+
+bool verify_managed_secret(const std::string&, const std::wstring&, bool, std::string& error) {
+    error = "PMF authentication is supported on Windows only.";
     return false;
 }
 

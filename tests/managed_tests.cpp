@@ -94,6 +94,36 @@ int main() {
         return 8;
     }
 
+    const auto metadata_label = label + "-metadata";
+    const auto metadata = pmf::inspect_target(source, metadata_label);
+    const auto second_recovery = test_directory / L"recovery-metadata.txt";
+    error.clear();
+
+    if (!metadata || !pmf::install_managed(*metadata, L"another-test-password-12",
+                                            second_recovery, error, false)) {
+        std::cerr << error << '\n';
+        return 10;
+    }
+
+    const auto metadata_directory = workspace->path / L"managed" / metadata_label;
+
+    if (fs::exists(metadata_directory / L"payload.exe") ||
+        !fs::exists(metadata_directory / L"manifest.txt")) {
+        return 11;
+    }
+
+    if (!pmf::verify_managed_secret(metadata_label, L"another-test-password-12", false, error)) {
+        return 12;
+    }
+
+    if (pmf::verify_managed_secret(metadata_label, L"incorrect", false, error)) {
+        return 13;
+    }
+
+    if (!pmf::uninstall_managed(metadata_label, L"another-test-password-12", false, error)) {
+        return 14;
+    }
+
     fs::remove_all(test_directory, ec);
 
     if (ec) {

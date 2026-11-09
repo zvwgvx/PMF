@@ -1,5 +1,6 @@
 #include "pmf/identity.hpp"
 #include "pmf/managed.hpp"
+#include "pmf/service.hpp"
 #include "pmf/windows_ui.hpp"
 #include "pmf/workspace.hpp"
 
@@ -300,51 +301,52 @@ private:
                  236, 179, 525, 52);
             text(L"Each managed application can have a separate password\n"
                  L"and a recovery text file.", 236, 242, 525, 74);
-            text(L"PMF does not execute the file, configure automatic startup,\n"
-                 L"modify antivirus settings, or block administrator removal.",
+            text(L"Windows will register and start the selected service under\n"
+                 L"NT AUTHORITY\\LocalService. Administrator approval is required.\n"
+                 L"PMF does not change antivirus settings or block removal.",
                  236, 343, 525, 68);
         } else if (page_ == 1) {
-            title(L"Select program", L"Choose the executable and installation label");
-            text(L"Windows executable (.exe)", 236, 154, 525, 28, true);
+            title(L"Select Windows Service", L"Choose a service-compatible PE and installation label");
+            text(L"Windows Service executable (.exe)", 236, 154, 525, 28, true);
             file_edit_ = edit(file_.wstring(), 236, 184, 408);
             button(L"Browse...", browse_id, 656, 184, 107);
             text(L"Installation label", 236, 259, 525, 28, true);
             label_edit_ = edit(label_, 236, 289, 527);
-            text(L"The original executable will not be modified.", 236, 360, 527, 37);
+            text(L"The file must implement Windows Service startup and stop handling.", 236, 352, 527, 55);
         } else if (page_ == 2) {
             title(L"Security and recovery", L"Set unique credentials for this application");
             text(L"Management password (at least 12 characters)", 236, 144, 527, 28, true);
             pass_edit_ = edit(password_, 236, 175, 527, true);
             text(L"Confirm password", 236, 224, 527, 28, true);
-            confirm_edit_ = edit(password_, 236, 253, 527, true);
+            confirm_edit_ = edit(L"", 236, 253, 527, true);
             text(L"Recovery text file", 236, 310, 527, 28, true);
             recovery_edit_ = edit(recovery_.wstring(), 236, 339, 403, false, true);
             button(L"Save As...", save_id, 651, 338, 112);
             text(L"Save this file outside PMF and keep it private.", 236, 389, 527, 31);
         } else if (page_ == 3) {
-            title(L"Ready to install", L"Review the managed-copy operation");
+            title(L"Ready to install service", L"Requires Windows administrator consent");
             text(L"Program:", 236, 161, 527, 29, true);
             text(file_.wstring(), 236, 196, 527, 53);
             text(L"Label: " + label_, 236, 258, 527, 29, true);
             text(L"Recovery file: " + recovery_.wstring(), 236, 301, 527, 54);
             agreement_ = add(L"BUTTON",
-                             L"I authorize this managed-copy installation.",
+                             L"I authorize an automatic-start LocalService Windows Service.",
                              236, 377, 527, 32, BS_AUTOCHECKBOX | WS_TABSTOP);
         } else {
-            title(L"Installation complete", L"Managed executable registered");
+            title(L"Installation complete", L"Windows Service registered and started");
             text(L"Label: " + label_, 236, 187, 527, 37, true);
-            text(L"The managed copy is stored in C:\\ProgramData\\PMF\\managed.",
+            text(L"Service EXE: C:\\Program Files\\PMF\\Services\\<label>\\service.exe",
                  236, 259, 527, 58);
-            text(L"Save the recovery text file securely. No automatic startup was configured.",
+            text(L"Windows SCM controls startup; retain your recovery file securely.",
                  236, 360, 527, 54);
         }
     }
 
     void unloader_page() {
         if (page_ == 0) {
-            title(L"Select application", L"Choose a managed executable to remove");
+            title(L"Select Windows Service", L"Choose a PMF-managed Windows Service to remove");
             std::string error;
-            auto names = pmf::list_managed(error);
+            auto names = pmf::list_services(error);
             package_list_ = add(L"LISTBOX", L"", 236, 167, 527, 204,
                                 LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP,
                                 list_id, font_, WS_EX_CLIENTEDGE);
@@ -377,17 +379,17 @@ private:
             text(L"This credential protects the normal PMF removal workflow.",
                  236, 389, 527, 37);
         } else if (page_ == 2) {
-            title(L"Confirm removal", L"Review before removing the managed copy");
+            title(L"Confirm removal", L"Windows will stop and unregister the service");
             text(L"Application: " + label_, 236, 182, 527, 31, true);
-            text(L"The PMF-managed executable and manifest will be deleted.\n"
-                 L"The original executable and recovery text file stay untouched.",
+            text(L"PMF will stop and unregister the Windows Service, then delete\n"
+                 L"its installed EXE and manifest. The source file remains.",
                  236, 248, 527, 77);
-            agreement_ = add(L"BUTTON", L"I authorize removing this managed copy.",
+            agreement_ = add(L"BUTTON", L"I authorize stopping and unregistering this service.",
                              236, 369, 527, 34, BS_AUTOCHECKBOX | WS_TABSTOP);
         } else {
-            title(L"Removal complete", L"The selected managed copy has been deleted");
+            title(L"Removal complete", L"Windows Service unregistered and files deleted");
             text(L"Application: " + label_, 236, 194, 527, 37, true);
-            text(L"The original executable and recovery text file were not changed.",
+            text(L"The original executable and recovery text file remain unchanged.",
                  236, 302, 527, 59);
         }
     }
@@ -426,8 +428,11 @@ private:
             if (page_ == 1) {
                 file_ = value_of(file_edit_);
                 label_ = value_of(label_edit_);
-                if (!pmf::inspect_target(file_, ascii(label_))) {
-                    error(L"Select an existing .exe file and a valid installation label.");
+                auto identity = pmf::inspect_target(file_, ascii(label_));
+                std::string validation;
+                if (!identity || !pmf::inspect_service_executable(file_, validation)) {
+                    error(validation.empty() ? L"Choose a valid Windows Service EXE and label." :
+                          std::wstring(validation.begin(), validation.end()));
                     return;
                 }
             } else if (page_ == 2) {
@@ -458,7 +463,7 @@ private:
                     return;
                 }
                 std::string failure;
-                bool installed = pmf::install_managed(*identity, password_, recovery_, failure);
+                bool installed = pmf::install_service(*identity, password_, recovery_, failure);
                 scrub(password_);
                 if (!installed) {
                     error(std::wstring(failure.begin(), failure.end()));
@@ -498,7 +503,7 @@ private:
                     return;
                 }
                 std::string failure;
-                bool removed = pmf::uninstall_managed(ascii(label_), secret_,
+                bool removed = pmf::uninstall_service(ascii(label_), secret_,
                                                       recovery_mode_, failure);
                 scrub(secret_);
                 if (!removed) {

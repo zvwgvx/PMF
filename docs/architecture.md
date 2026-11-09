@@ -1,22 +1,33 @@
-# PMF Architecture
+# PMF v0.4.0 — Windows Service architecture
 
-## Graphical user interfaces
+## Components
 
-\`src/ui/wizard.cpp\` implements a shared native Win32 wizard UI. Two Windows GUI subsystem frontends call the shared interface:
+- `pmf-loader.exe`: graphical setup wizard for a user-selected Windows Service executable
+- `pmf-unloader.exe`: graphical removal wizard with password and recovery-code authentication
+- `pmf-wizard`: shared Win32 GUI library statically linked into both EXEs
+- `pmf-core`: PE validation, authenticated manifests, file management, and SCM integration
 
-- \`pmf-loader.exe\` — five pages: Welcome, Select Program, Security and Recovery, Review, Finish.
-- \`pmf-unloader.exe\` — four pages: Select Program, Authentication, Review, Finish.
+PMF management EXEs use the Windows GUI subsystem with an administrator UAC manifest. No MSI installation or Apps & Features registration is performed for PMF itself.
 
-The interface uses standard Win32 controls and file picker dialogs, with no CLR, .NET, Qt, Electron, or MSI runtime dependency. The binaries do not add an Apps & Features entry.
+## Install
 
-## Managed storage
+1. Select an existing Windows Service PE and a valid installation label.
+2. Provide explicit consent, a management password, and a recovery file destination.
+3. Create `%ProgramFiles%\PMF\Services\<label>\service.exe`.
+4. Store credential verifiers and manifest under `%ProgramData%\PMF\managed\<label>\`.
+5. Register `PMF-<label>` with SCM under `NT AUTHORITY\LocalService` as an automatically started own-process service.
+6. Ask SCM to start the service and wait for the running state.
+7. Roll back newly created resources on failed installation where possible.
 
-A managed executable is copied to \`%ProgramData%\PMF\managed\<label>\payload.exe\` with its SHA-256 integrity metadata and separate salted password/recovery code verifiers. The original executable stays unchanged. Recovery code material is saved to a user-selected text file outside the PMF workspace.
+## Remove
 
-## Core library
+1. Select an existing PMF-managed Windows Service and enter its password or recovery code.
+2. Verify credentials, then confirm removal.
+3. Request SCM stop, wait for the stopped state, and unregister with `DeleteService`.
+4. Remove the managed service executable and authentication manifest.
 
-\`pmf-core\` exposes identity validation, workspace preparation, managed package installation/removal and credential verification. The shared wizard invokes this core without changing its authorization model.
+Administrative service-management rights remain effective regardless of the PMF password.
 
-## Limitations
+## Scope
 
-PMF does not execute PE files, configure startup, create services, change antivirus policies, conceal binaries, or prevent administrative removal. The package manager remains a reversible and auditable local file-management tool.
+PMF does not install into SYSTEM, create AV exclusions, use process injection, hide services, or implement self-repair or anti-removal functionality. It cannot convert an arbitrary non-service EXE into a Windows Service.

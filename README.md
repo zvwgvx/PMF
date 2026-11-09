@@ -1,25 +1,28 @@
 # PMF — Persistence Management Framework
 
-PMF is a C++20 project for explicit, user-authorized Windows executable management. The Windows frontends are native graphical setup and removal wizards rather than terminal programs.
+PMF is a native C++20 Windows Service installation and removal framework. It consists of two independent graphical executables, `pmf-loader.exe` and `pmf-unloader.exe`, and does not register itself in Windows Apps & Features.
 
-## Windows applications
+## Windows Service workflow
 
-- \`pmf-loader.exe\` opens a multi-step setup wizard to select a local Windows executable through Browse, specify a management label, enter and confirm a password, choose where to save a recovery text file, review the operation, and create a managed copy.
-- \`pmf-unloader.exe\` opens a removal wizard to select an installed PMF-managed copy, authenticate using its password or recovery code, review the operation, and delete that managed copy.
-- Both programs are compiled as Windows GUI subsystem executables. They do not open a command prompt or register themselves in Windows Apps & Features.
-- PMF requires no .NET runtime. The MSVC release build uses a statically linked C runtime, and the executables use native Win32 APIs.
+The loader opens a five-step Win32 setup wizard: review permissions, browse for an existing Windows Service EXE, choose a unique label, set an independent password, save a recovery text file, and confirm registration.
 
-## Current operation
+The UAC manifest requests administrator approval. PMF validates the PE file structure, copies it to a managed location in Program Files, registers it using Windows Service Control Manager, and starts it. Services are named `PMF-<label>`, use automatic startup and `SERVICE_WIN32_OWN_PROCESS`, and run under `NT AUTHORITY\LocalService` — not SYSTEM.
 
-PMF stores each managed copy under \`%ProgramData%\PMF\managed\<label>\payload.exe\`, with \`manifest.txt\` beside it. The original executable is never modified.
+The executable must already implement the Windows Service API. PMF does not turn ordinary console or GUI EXEs into Windows Services. SCM startup validation fails and installation is rolled back when the selected executable cannot start as a service.
 
-Authentication uses separate salts and PBKDF2-HMAC-SHA256 password verifiers. Every package receives a unique randomly generated recovery code saved as a text file at a path chosen by the user. Executable integrity is checked with SHA-256.
+The unloader displays PMF-managed services, accepts a per-service password or recovery code, asks for confirmation, stops and unregisters the service, then removes PMF-managed files. It does not modify the original executable or its recovery text file.
 
-PMF does not execute the managed executable, register an autorun task or Windows service, alter antivirus exclusions, or prevent removal by a system administrator. A management password restricts the normal PMF unloader workflow only.
+## File locations
+
+Service executable: `C:\Program Files\PMF\Services\<label>\service.exe`
+
+Authentication metadata: `C:\ProgramData\PMF\managed\<label>\manifest.txt`
+
+Passwords and recovery codes are stored only as separate salted PBKDF2-HMAC-SHA256 verifiers. Recovery codes contain 160 bits of cryptographic randomness and are saved in a user-selected text file outside PMF storage.
 
 ## Build
 
-On Windows, install CMake 3.20+ and MSVC C++ Build Tools.
+Windows prerequisites are CMake 3.20+ and Visual Studio C++ Build Tools.
 
 ~~~powershell
 cmake -S . -B build -A x64
@@ -27,16 +30,14 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ~~~
 
-Run \`build\Release\pmf-loader.exe\` or \`build\Release\pmf-unloader.exe\` by double-clicking. A console is not required.
+Double-click `build\Release\pmf-loader.exe` or `build\Release\pmf-unloader.exe` to launch the graphical wizard. Both management programs are standalone Windows GUI binaries with statically linked MSVC runtime. `build\Release\pmf-sample-service.exe` is a separate, no-op development fixture.
 
-## User interface
+## Security boundaries
 
-The loader has Welcome, Select Program, Security, Review, and Finish pages. The unloader has Select Program, Authentication, Review, and Finish pages. Each wizard uses Back, Next, and Cancel controls with explicit confirmation before changing files.
-
-## Storage and recovery
-
-The recovery text contains a credential that authorizes removal of its corresponding managed package. Save it outside the PMF directory and protect it like a password. If PMF cannot write to \`%ProgramData%\PMF\`, run the wizard with the necessary Windows folder permissions.
-
-## Safety boundaries
-
-This is a managed-copy prototype, not a stealth or anti-removal persistence system. No antivirus exclusion is created or required, and the administrator remains in control of the computer.
+- Service creation and removal are subject to Windows administrator consent.
+- The installed service runs as LocalService with limited permissions.
+- Services remain visible and removable through Windows SCM and administrative tooling.
+- PMF passwords protect only the normal application management workflow. Administrators can override PMF.
+- PMF does not modify AV settings, create exclusions, hide processes, install drivers, or provide anti-removal.
+- Selected service EXEs must provide a working service entry point and required dependencies; a PE header check alone is not proof of service compatibility.
+- Legacy v0.2/v0.3 managed copies are not automatically migrated.
