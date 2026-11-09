@@ -74,7 +74,7 @@ public:
         WNDCLASSW klass{};
         klass.lpfnWndProc = &Window::callback;
         klass.hInstance = instance;
-        klass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        klass.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(OCR_NORMAL));
         klass.lpszClassName = name;
 
         if (!RegisterClassW(&klass) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
