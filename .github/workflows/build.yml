@@ -26,4 +26,6 @@ jobs:
           path: |
             build/Release/pmf-loader.exe
             build/Release/pmf-unloader.exe
+            build/Release/pmf-loader-cli.exe
+            build/Release/pmf-unloader-cli.exe
           if-no-files-found: error

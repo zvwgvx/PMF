@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(PMF VERSION 0.6.0 LANGUAGES CXX)
+project(PMF VERSION 0.7.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +36,16 @@ else()
     add_executable(pmf-unloader src/unloader/main.cpp)
     target_include_directories(pmf-loader PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
     target_include_directories(pmf-unloader PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_executable(pmf-loader-cli src/loader/cli_main.cpp)
+add_executable(pmf-unloader-cli src/unloader/cli_main.cpp)
+target_link_libraries(pmf-loader-cli PRIVATE pmf-core)
+target_link_libraries(pmf-unloader-cli PRIVATE pmf-core)
+
+if(MSVC)
+    target_link_options(pmf-loader-cli PRIVATE "/MANIFESTUAC:level='requireAdministrator'")
+    target_link_options(pmf-unloader-cli PRIVATE "/MANIFESTUAC:level='requireAdministrator'")
+endif()
+
 endif()
 
 enable_testing()

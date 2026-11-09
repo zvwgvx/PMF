@@ -1,10 +1,33 @@
 # PMF — Persistence Management Framework
 
-PMF v0.6.0 provides two standalone, native Win32 setup and removal wizards for Windows Services. Each is a single Windows GUI-subsystem executable, requires no MSI or .NET runtime, and does not register PMF itself in Windows Apps & Features.
+PMF v0.7.0 provides both native Win32 setup wizards and interactive console tools for the same Windows Service management core. All four tools are independent EXE binaries; PMF does not use an MSI installer or register itself in Windows Apps & Features.
+
+## Four executables
+
+| Binary | Interface | Purpose |
+|---|---|---|
+| `pmf-loader.exe` | Classic Windows GUI wizard | Install an authorized Windows Service |
+| `pmf-unloader.exe` | Classic Windows GUI wizard | Remove a PMF-managed service |
+| `pmf-loader-cli.exe` | Console | Install a service interactively or with path and label arguments |
+| `pmf-unloader-cli.exe` | Console | List and remove PMF-managed services |
+
+Both interface styles call the same shared `pmf-core` library and use the same metadata, password, recovery-code, and SCM implementation. Changing between the GUI and CLI does not change the installed service.
+
+### CLI usage
+
+Run from an elevated Windows Terminal:
+
+```powershell
+.\pmf-loader-cli.exe install "C:\Path\my-service.exe" example
+.\pmf-unloader-cli.exe list
+.\pmf-unloader-cli.exe remove example
+```
+
+The CLI programs also accept interactive input without fixed arguments. Passwords are never required as command-line arguments.
 
 ## Classic wizard experience
 
-Both programs use a consistent Windows installer layout with a white header, native controls, system-color content area, a classic welcome/finish sidebar, and Back / Next / Cancel buttons. The interface includes a working state with a progress indicator and a completion or error page.
+The two graphical programs use a consistent Windows installer layout with a white header, native controls, system-color content area, a classic welcome/finish sidebar, and Back / Next / Cancel buttons. The interface includes a working state with a progress indicator and a completion or error page.
 
 ### Setup wizard: pmf-loader.exe
 
@@ -56,7 +79,7 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ~~~
 
-Double-click build/Release/pmf-loader.exe or build/Release/pmf-unloader.exe. The MSVC release build statically links the C runtime. GitHub Actions produces an artifact named pmf-windows containing both EXEs.
+Double-click `build/Release/pmf-loader.exe` or `build/Release/pmf-unloader.exe` for the GUI. Run `build/Release/pmf-loader-cli.exe` or `build/Release/pmf-unloader-cli.exe` in a terminal for the CLI. The MSVC release build statically links the C runtime. GitHub Actions produces the `pmf-windows` artifact containing all four EXEs.
 
 ## Trust and security
 
