@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+⟦untrusted:ad193d41⟧cmake_minimum_required(VERSION 3.20)
 project(PMF VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -28,3 +28,9 @@ enable_testing()
 add_executable(pmf-tests tests/identity_tests.cpp)
 target_link_libraries(pmf-tests PRIVATE pmf-core)
 add_test(NAME pmf-identity COMMAND pmf-tests)
+⟦/untrusted:ad193d41⟧
+if(WIN32)
+    add_executable(pmf-managed-tests tests/managed_tests.cpp)
+    target_link_libraries(pmf-managed-tests PRIVATE pmf-core)
+    add_test(NAME pmf-managed-lifecycle COMMAND pmf-managed-tests)
+endif()

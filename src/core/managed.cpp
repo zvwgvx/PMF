@@ -1,4 +1,4 @@
-#include "pmf/managed.hpp"
+⟦untrusted:fb72be92⟧#include "pmf/managed.hpp"
 #include "pmf/workspace.hpp"
 
 #include <filesystem>
@@ -353,6 +353,19 @@ bool install_managed(const InstallationIdentity& identity, const std::wstring& p
         return false;
     }
 
+    const auto workspace = workspace_directory();
+    std::error_code path_ec;
+    const auto relative_recovery = std::filesystem::relative(recovery_path, *workspace, path_ec);
+
+    if (!path_ec && !relative_recovery.empty() && !relative_recovery.is_absolute() &&
+        *relative_recovery.begin() != std::filesystem::path(L"..")) {
+        rollback();
+        error = "Recovery file must be stored outside the PMF workspace.";
+        return false;
+    }
+
+    ec.clear();
+
     if (std::filesystem::exists(recovery_path, ec) || ec) {
         rollback();
         error = "Recovery file already exists; select a new file path.";
@@ -495,3 +508,4 @@ std::vector<std::string> list_managed(std::string& error) {
 }
 
 #endif
+⟦/untrusted:fb72be92⟧
