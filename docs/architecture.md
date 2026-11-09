@@ -2,24 +2,31 @@
 
 ## Components
 
-- `pmf-loader.exe`: a standalone C++ CLI for target inspection and consent-based workspace preparation.
-- `pmf-unloader.exe`: a standalone C++ CLI for workspace inspection and future authorized removal.
+- `pmf-loader.exe`: standalone Windows CLI using the native Windows file picker, password prompt, and recovery-file picker.
+- `pmf-unloader.exe`: standalone Windows CLI for listing and removing managed binary copies with password or recovery authentication.
 - `pmf-core`: a static library linked into both executables.
 
 ## Workspace
 
-On Windows, the workspace is `%ProgramData%\PMF`, usually `C:\ProgramData\PMF`. The path is resolved from the Windows known-folder API. The loader creates or checks it only after an affirmative response. The core does not change Windows ACLs, antivirus policy, or startup registration.
+PMF uses the Windows Known Folder API to find `%ProgramData%`, normally `C:\ProgramData`, and maintains binary copies under `PMF\managed\<label>`. It refuses to follow a reparse point at a managed copy destination when removing a package.
 
-The project does not install itself into Apps & Features or Windows Programs & Features.
+Each managed directory holds exactly a copied executable and a text manifest. There is no installation registry entry, Windows service, autorun entry, or antivirus policy change.
 
-## Boundaries
+## Authentication
 
-Version 0.1.0 performs no persistence, arbitrary execution, process injection, antivirus alteration, or anti-removal operations. Removing the workspace remains an administrator-controlled operation.
+A password with at least 12 characters and an independently generated recovery code are required during registration. PMF derives separate PBKDF2-HMAC-SHA256 verifiers using random 128-bit salts and 600,000 iterations. Recovery codes contain 160 bits of secure random data and are stored as a separate text file chosen by the user. The manifest stores only derived hashes and salts.
 
-## Future interfaces
+Password-based removal is a normal workflow control, not a mechanism for preventing the device administrator from recovering or removing files.
 
-1. Inspect an authorized Windows executable.
-2. Present a clear installation scope and obtain consent.
-3. Create a verifiable manifest and audit trail.
-4. Support authorized removal, including administrator recovery.
-5. Apply documented Windows service configuration only for applications explicitly approved to operate as services.
+## Reliability
+
+- Refuses duplicate installation labels
+- Validates executable extension and path
+- Verifies original and copied SHA-256 hashes
+- Attempts to roll back incomplete managed-copy installation
+- Requires explicit confirmation before removing managed copies
+- Never modifies the original executable
+
+## Scope
+
+PMF v0.2.0 is a package-management prototype, not a persistence mechanism. It never launches the copied executable, arranges auto-start, creates a service, changes AV settings, or implements anti-removal features.
