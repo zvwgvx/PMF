@@ -95,7 +95,7 @@ public:
         klass.hInstance = instance;
         klass.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
         klass.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
-        klass.lpszClassName = install ? L"PMFSetupClassic" : L"PMFRemoveClassic";
+        klass.lpszClassName = install_ ? L"PMFSetupClassic" : L"PMFRemoveClassic";
         if (!RegisterClassW(&klass) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
             release();
             return 1;
@@ -110,7 +110,7 @@ public:
         const int y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
         window_ = CreateWindowExW(0, klass.lpszClassName,
-                                  install ? L"PMF Setup" : L"PMF Removal",
+                                  install_ ? L"PMF Setup" : L"PMF Removal",
                                   WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
                                   WS_CLIPCHILDREN,
                                   x, y, width, height,
@@ -687,7 +687,7 @@ private:
         const auto label = narrow_label(label_);
         const auto exe = exe_;
         const auto recovery = recovery_;
-        const auto password = install_ ? password_ : secret_;
+        auto password = install_ ? password_ : secret_;
         const bool recovered = use_recovery_;
 
         worker_ = std::thread([this, label, exe, recovery, password, recovered]() mutable {
