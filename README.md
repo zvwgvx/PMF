@@ -1,43 +1,61 @@
 # PMF — Persistence Management Framework
 
-PMF is a native C++20 Windows Service installation and removal framework. It consists of two independent graphical executables, `pmf-loader.exe` and `pmf-unloader.exe`, and does not register itself in Windows Apps & Features.
+PMF v0.5.0 provides two standalone C++20 Windows command-line utilities for consent-based management of existing Windows Service executables:
 
-## Windows Service workflow
+- `pmf-loader.exe` — register and start a Windows Service using Windows Service Control Manager
+- `pmf-unloader.exe` — list, stop, unregister and remove PMF-managed services
 
-The loader opens a five-step Win32 setup wizard: review permissions, browse for an existing Windows Service EXE, choose a unique label, set an independent password, save a recovery text file, and confirm registration.
+Both binaries are Windows console applications. They are not added to Apps & Features and do not require a separate MSI installer.
 
-The UAC manifest requests administrator approval. PMF validates the PE file structure, copies it to a managed location in Program Files, registers it using Windows Service Control Manager, and starts it. Services are named `PMF-<label>`, use automatic startup and `SERVICE_WIN32_OWN_PROCESS`, and run under `NT AUTHORITY\LocalService` — not SYSTEM.
+## Usage
 
-The executable must already implement the Windows Service API. PMF does not turn ordinary console or GUI EXEs into Windows Services. SCM startup validation fails and installation is rolled back when the selected executable cannot start as a service.
+From an elevated Windows Terminal or PowerShell session:
 
-The unloader displays PMF-managed services, accepts a per-service password or recovery code, asks for confirmation, stops and unregisters the service, then removes PMF-managed files. It does not modify the original executable or its recovery text file.
+```powershell
+.\pmf-loader.exe install "C:\Path\service.exe" example
+.\pmf-unloader.exe list
+.\pmf-unloader.exe remove example
+```
 
-## File locations
+Running `pmf-loader.exe` or `pmf-unloader.exe` without arguments enters interactive mode. For help use `--help`.
 
-Service executable: `C:\Program Files\PMF\Services\<label>\service.exe`
+During installation, the loader prompts for an optional password. Any length is permitted, including an empty password. When no password is chosen, PMF explicitly warns that its normal removal workflow will not require a password. A recovery code is always generated and written to a user-selected text file.
 
-Authentication metadata: `C:\ProgramData\PMF\managed\<label>\manifest.txt`
+During removal, authentication may use the original password, the recovery code, or no password if the service was registered without one. A Windows administrator remains able to stop and manage the service using standard Windows administration tools independently of PMF.
 
-Passwords and recovery codes are stored only as separate salted PBKDF2-HMAC-SHA256 verifiers. Recovery codes contain 160 bits of cryptographic randomness and are saved in a user-selected text file outside PMF storage.
+## Service installation
+
+The selected `.exe` must be a real Windows Service that implements the Service Control Manager lifecycle API. A valid PE header does not prove service compatibility; PMF asks SCM to start the service and reports startup failure.
+
+| Setting | Value |
+|---|---|
+| Service name | `PMF-<label>` |
+| Installed EXE | `C:\Program Files\PMF\Services\<label>\service.exe` |
+| Metadata | `C:\ProgramData\PMF\managed\<label>\manifest.txt` |
+| Account | `NT AUTHORITY\LocalService` |
+| Startup | Automatic |
+| Elevation | UAC administrator approval |
+
+A SYSTEM/LocalSystem account option is not provided. This installer does not create antivirus exclusions, conceal its services, or prevent administrative removal.
+
+## Passwords and recovery codes
+
+Passwords are optional, and there is no minimum length. Where used, passwords are checked against salted PBKDF2-HMAC-SHA256 verifiers. A randomly generated recovery code with 160 bits of entropy is saved separately to a text file chosen by the user. Recovery files should be protected and stored outside PMF's managed folders.
+
+Existing manifests from earlier versions remain readable. New manifests also indicate when a password was intentionally omitted.
 
 ## Build
 
-Windows prerequisites are CMake 3.20+ and Visual Studio C++ Build Tools.
+Requires CMake 3.20+ and a C++20 toolchain. On Windows, use MSVC:
 
-~~~powershell
+```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
-~~~
+```
 
-Double-click `build\Release\pmf-loader.exe` or `build\Release\pmf-unloader.exe` to launch the graphical wizard. Both management programs are standalone Windows GUI binaries with statically linked MSVC runtime. `build\Release\pmf-sample-service.exe` is a separate, no-op development fixture.
+The built `pmf-loader.exe` and `pmf-unloader.exe` are console-subsystem binaries that use the static MSVC runtime. Both request administrative approval via an embedded UAC manifest. GitHub Actions builds the two binaries and publishes them as the `pmf-windows` artifact.
 
-## Security boundaries
+## Antivirus and system security
 
-- Service creation and removal are subject to Windows administrator consent.
-- The installed service runs as LocalService with limited permissions.
-- Services remain visible and removable through Windows SCM and administrative tooling.
-- PMF passwords protect only the normal application management workflow. Administrators can override PMF.
-- PMF does not modify AV settings, create exclusions, hide processes, install drivers, or provide anti-removal.
-- Selected service EXEs must provide a working service entry point and required dependencies; a PE header check alone is not proof of service compatibility.
-- Legacy v0.2/v0.3 managed copies are not automatically migrated.
+Being a CLI does not inherently make an application malicious or safe. Microsoft Defender and Windows SmartScreen may still warn about unsigned, unfamiliar executables or service-registration behavior. PMF does not attempt to bypass AV, require broad folder exclusions, or disable Windows security protections.

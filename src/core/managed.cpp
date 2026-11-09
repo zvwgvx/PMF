@@ -256,8 +256,8 @@ bool is_reparse_point(const std::filesystem::path& path) {
 bool install_managed(const InstallationIdentity& identity, const std::wstring& password,
                      const std::filesystem::path& recovery_path, std::string& error,
                      bool keep_copy) {
-    if (!valid_label(identity.label) || password.size() < 12) {
-        error = "Invalid label or password shorter than 12 characters.";
+    if (!valid_label(identity.label)) {
+        error = "Invalid installation label.";
         return false;
     }
 
@@ -339,7 +339,9 @@ bool install_managed(const InstallationIdentity& identity, const std::wstring& p
     std::vector<std::uint8_t> password_hash;
     std::vector<std::uint8_t> recovery_hash;
 
-    if (!derive_secret(password, password_salt, password_hash) ||
+    const bool has_password = !password.empty();
+
+    if ((has_password && !derive_secret(password, password_salt, password_hash)) ||
         !derive_secret(recovery_wide, recovery_salt, recovery_hash)) {
         rollback();
         error = "Could not derive password verifiers.";
@@ -351,8 +353,9 @@ bool install_managed(const InstallationIdentity& identity, const std::wstring& p
         {"label", identity.label},
         {"binary", keep_copy ? "payload.exe" : "service.exe"},
         {"sha256", copied_hash},
-        {"password_salt", hex_encode(password_salt)},
-        {"password_hash", hex_encode(password_hash)},
+        {"password_mode", has_password ? "set" : "none"},
+        {"password_salt", has_password ? hex_encode(password_salt) : ""},
+        {"password_hash", has_password ? hex_encode(password_hash) : ""},
         {"recovery_salt", hex_encode(recovery_salt)},
         {"recovery_hash", hex_encode(recovery_hash)}
     };
@@ -436,6 +439,12 @@ bool verify_managed_secret(const std::string& label, const std::wstring& secret,
 
     if (!read_manifest(destination / L"manifest.txt", fields) || fields["label"] != label) {
         error = "Installation manifest is missing or invalid.";
+        return false;
+    }
+
+    if (!recovery_mode && fields["password_mode"] == "none") {
+        if (secret.empty()) return true;
+        error = "This service uses no management password; choose no-password mode.";
         return false;
     }
 
