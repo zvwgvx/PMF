@@ -19,6 +19,7 @@ int main() {
     fs::create_directories(test_directory, ec);
 
     if (ec) {
+        std::cerr << "PMF lifecycle failure 1\\n";
         return 1;
     }
 
@@ -34,6 +35,7 @@ int main() {
     const auto workspace = pmf::prepare_workspace(ec);
 
     if (!identity || !workspace || ec) {
+        std::cerr << "PMF lifecycle failure 2\\n";
         return 2;
     }
 
@@ -41,18 +43,21 @@ int main() {
 
     if (!pmf::install_managed(*identity, L"test-password-at-least-12", recovery_file, error)) {
         std::cerr << error << '\n';
+        std::cerr << "PMF lifecycle failure 3\\n";
         return 3;
     }
 
     const auto managed_binary = workspace->path / L"managed" / label / L"payload.exe";
 
     if (!fs::is_regular_file(managed_binary)) {
+        std::cerr << "PMF lifecycle failure 4\\n";
         return 4;
     }
 
     error.clear();
 
     if (pmf::uninstall_managed(label, L"wrong-password", false, error)) {
+        std::cerr << "PMF lifecycle failure 5\\n";
         return 5;
     }
 
@@ -69,6 +74,7 @@ int main() {
     }
 
     if (recovery.empty()) {
+        std::cerr << "PMF lifecycle failure 6\\n";
         return 6;
     }
 
@@ -77,16 +83,19 @@ int main() {
 
     if (!pmf::uninstall_managed(label, recovery_wide, true, error)) {
         std::cerr << error << '\n';
+        std::cerr << "PMF lifecycle failure 7\\n";
         return 7;
     }
 
     if (fs::exists(managed_binary) || !fs::exists(source)) {
+        std::cerr << "PMF lifecycle failure 8\\n";
         return 8;
     }
 
     fs::remove_all(test_directory, ec);
 
     if (ec) {
+        std::cerr << "PMF lifecycle failure 9\\n";
         return 9;
     }
 
